@@ -42,7 +42,8 @@ function App() {
 
   if (loading) {
     return (
-      <div className="loading-screen">
+      <div className="loading-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+        <img src="/favicon.svg" alt="Nutri J Logo" className="animate-pulse" style={{ width: '64px', height: '64px' }} />
         <span className="logo-text animate-pulse" style={{ fontSize: '2rem' }}>
           Nutri <span>J</span>
         </span>

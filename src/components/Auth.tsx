@@ -66,8 +66,9 @@ export const Auth: React.FC = () => {
     <div className="auth-page">
       {/* ── LADO ESQUERDO ── */}
       <div className="auth-left">
-        <div className="auth-left-brand">
-          <span className="logo-text" style={{ fontSize: '1.5rem' }}>
+        <div className="auth-left-brand" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2.5rem' }}>
+          <img src="/favicon.svg" alt="Nutri J Logo" style={{ width: '36px', height: '36px' }} />
+          <span className="logo-text" style={{ fontSize: '1.65rem', margin: 0 }}>
             Nutri <span>J</span>
             <span className="logo-badge">Beta</span>
           </span>

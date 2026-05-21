@@ -348,6 +348,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, theme, toggleTheme }
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isFetchingPatientDetails, setIsFetchingPatientDetails] = useState(false);
 
   // Data states
   const [nomeNutricionista, setNomeNutricionista] = useState('Nutricionista');
@@ -405,7 +406,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, theme, toggleTheme }
       // 2. Pacientes
       const { data: patientsData, error: patientsError } = await supabase
         .from('pacientes')
-        .select('*')
+        .select('id, nome, email, data_nascimento, sexo, telefone, whatsapp, peso_inicial, altura, created_at')
         .eq('nutricionista_id', user.id)
         .order('nome', { ascending: true });
 
@@ -495,6 +496,42 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, theme, toggleTheme }
   useEffect(() => {
     loadAllData();
   }, [user.id]);
+
+  useEffect(() => {
+    if (!selectedPatientId) return;
+
+    const patientObj = patients.find(p => p.id === selectedPatientId);
+    if (!patientObj) return;
+
+    // Se o campo 'alergias' (ou qualquer outra propriedade clínica) for undefined,
+    // significa que este paciente ainda não teve sua ficha detalhada carregada sob demanda
+    if (patientObj.alergias === undefined) {
+      const fetchPatientDetails = async () => {
+        try {
+          setIsFetchingPatientDetails(true);
+          const { data, error } = await supabase
+            .from('pacientes')
+            .select('*')
+            .eq('id', selectedPatientId)
+            .single();
+
+          if (error) throw error;
+
+          if (data) {
+            // Injeta todos os dados detalhados obtidos do Supabase no estado do paciente específico
+            setPatients(prev => prev.map(p => p.id === selectedPatientId ? { ...p, ...data } : p));
+          }
+        } catch (err: any) {
+          console.warn('Erro ao carregar dados clínicos detalhados:', err);
+          setError('Não foi possível carregar todos os dados da ficha clínica.');
+        } finally {
+          setIsFetchingPatientDetails(false);
+        }
+      };
+
+      fetchPatientDetails();
+    }
+  }, [selectedPatientId, patients]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -702,7 +739,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, theme, toggleTheme }
     <div className="dashboard-container">
       {/* ── BARRA LATERAL FICA (SIDEBAR) ── */}
       <aside className="sidebar">
-        <div className="sidebar-logo">
+        <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <img src="/favicon.svg" alt="Nutri J Logo" style={{ width: '32px', height: '32px' }} />
           <span className="logo-text">
             Nutri <span>J</span>
             <span className="logo-badge">PRO</span>
@@ -1007,7 +1045,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, theme, toggleTheme }
                 color: 'var(--text)'
               }}>
                 {selectedPatient ? (
-                  isEditingPatient ? (
+                  isFetchingPatientDetails ? (
+                    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '6rem 0', gap: '1rem' }}>
+                      <Loader2 size={38} className="animate-spin" style={{ color: 'var(--primary)' }} />
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 650 }}>Buscando ficha clínica no Supabase...</p>
+                    </div>
+                  ) : isEditingPatient ? (
                     /* ── FORMULÁRIO DE EDIÇÃO CLINICA (NOVO) ── */
                     <form onSubmit={handleSavePatient} className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid var(--border)', paddingBottom: '1rem' }}>
