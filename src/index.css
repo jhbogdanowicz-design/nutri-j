@@ -43,6 +43,9 @@ html.dark {
   --error: #f87171;
   --error-bg: #451a1a;
   --primary-glow: rgba(56, 189, 248, 0.15);
+  /* Input fields in dark mode */
+  --bg-input: #1e293b;       /* Slate 800 – visível e contrastante */
+  --bg-input-focus: #263044; /* Levemente mais claro ao focar */
 }
 
 
@@ -156,6 +159,28 @@ body {
   flex-shrink: 0;
 }
 
+/* Dark mode específico para o painel de branding do login */
+html.dark .auth-left {
+  background: linear-gradient(160deg, #020617 0%, #0f172a 60%, #1e293b 100%);
+}
+
+html.dark .auth-left-headline {
+  color: #f8fafc;
+}
+
+html.dark .auth-left-sub {
+  color: #cbd5e1;
+}
+
+html.dark .auth-feature-item {
+  color: #e2e8f0;
+}
+
+html.dark .auth-left::after {
+  background: rgba(56, 189, 248, 0.08);
+}
+
+
 /* Painel direito */
 .auth-right {
   display: flex;
@@ -229,13 +254,13 @@ body {
   margin-bottom: 0.45rem;
   font-weight: 500;
   font-size: 0.85rem;
-  color: #374151;
+  color: var(--text-muted);
 }
 
 input {
   width: 100%;
   padding: 0.75rem 1rem;
-  background: var(--bg-soft);
+  background: var(--bg-input, var(--bg-soft));
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
   font-size: 0.925rem;
@@ -251,7 +276,7 @@ input::placeholder {
 input:focus {
   outline: none;
   border-color: var(--border-focus);
-  background: #fff;
+  background: var(--bg-input-focus, #fff);
   box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
 }
 
