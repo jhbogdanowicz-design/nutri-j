@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useTranslations } from '../lib/i18n';
+import { MealPlanSection } from './MealPlanSection';
 import { 
   LogOut, 
   Users, 
@@ -343,6 +344,7 @@ const EvolutionChart: React.FC<EvolutionChartProps> = ({ patientConsultations })
 export const Dashboard: React.FC<DashboardProps> = ({ user, theme, toggleTheme }) => {
   const t = useTranslations();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'pacientes' | 'agenda'>('dashboard');
+  const [activePatientSubTab, setActivePatientSubTab] = useState<'ficha' | 'plano'>('ficha');
   
   // Loading & Error states
   const [loading, setLoading] = useState(true);
@@ -361,6 +363,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, theme, toggleTheme }
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  useEffect(() => {
+    setActivePatientSubTab('ficha');
+  }, [selectedPatientId]);
+
   // Estados exclusivos da aba AGENDA (Calendário)
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
@@ -376,6 +382,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, theme, toggleTheme }
 
   // Estado para Gráfico do Dashboard
   const [dashboardChartPatientId, setDashboardChartPatientId] = useState<string>('');
+
+  // Estados para MODAIS DE CRIAÇÃO
+  const [showCreatePatientModal, setShowCreatePatientModal] = useState(false);
+  const [showCreateConsultationModal, setShowCreateConsultationModal] = useState(false);
+  const [showEditConsultationModal, setShowEditConsultationModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showTodayConsultationsPopup, setShowTodayConsultationsPopup] = useState(true);
+  const [newPatientData, setNewPatientData] = useState({ nome: '', email: '', telefone: '' });
+  const [newConsultationData, setNewConsultationData] = useState({ paciente_id: '', data_consulta: '', peso: '', percentual_gordura: '', observacoes: '', proximo_retorno: '' });
+  const [editConsultationData, setEditConsultationData] = useState<any>(null);
 
   // Meses por extenso
   const meses = [
@@ -735,6 +751,81 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, theme, toggleTheme }
   // Obter consultas do paciente do gráfico do dashboard
   const dashboardChartConsultations = consultations.filter(c => c.paciente_id === dashboardChartPatientId);
 
+  const handleCreatePatient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.from('pacientes').insert([{ ...newPatientData, nutricionista_id: user.id }]);
+      if (error) throw error;
+      setShowCreatePatientModal(false);
+      loadAllData();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCreateConsultation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.from('consultas').insert([{
+        paciente_id: newConsultationData.paciente_id,
+        data_consulta: newConsultationData.data_consulta,
+        peso: newConsultationData.peso ? parseFloat(newConsultationData.peso) : null,
+        percentual_gordura: newConsultationData.percentual_gordura ? parseFloat(newConsultationData.percentual_gordura) : null,
+        observacoes: newConsultationData.observacoes,
+        proximo_retorno: newConsultationData.proximo_retorno || null
+      }]);
+      if (error) throw error;
+      setShowCreateConsultationModal(false);
+      loadAllData();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenEditConsultation = (consultation: any) => {
+    setEditConsultationData({
+      id: consultation.id,
+      paciente_id: consultation.paciente_id,
+      data_consulta: consultation.data_consulta,
+      peso: consultation.peso || '',
+      percentual_gordura: consultation.percentual_gordura || '',
+      observacoes: consultation.observacoes || '',
+      proximo_retorno: consultation.proximo_retorno || ''
+    });
+    setShowEditConsultationModal(true);
+  };
+
+  const handleUpdateConsultation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from('consultas')
+        .update({
+          data_consulta: editConsultationData.data_consulta,
+          peso: editConsultationData.peso ? parseFloat(editConsultationData.peso) : null,
+          percentual_gordura: editConsultationData.percentual_gordura ? parseFloat(editConsultationData.percentual_gordura) : null,
+          observacoes: editConsultationData.observacoes,
+          proximo_retorno: editConsultationData.proximo_retorno || null
+        })
+        .eq('id', editConsultationData.id);
+
+      if (error) throw error;
+      setShowEditConsultationModal(false);
+      loadAllData();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="dashboard-container">
       {/* ── BARRA LATERAL FICA (SIDEBAR) ── */}
@@ -828,6 +919,32 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, theme, toggleTheme }
                 <h2>{t.greeting(primeiroNome)}</h2>
                 <p>{t.dashboardSubtitle}</p>
               </div>
+              
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                <button 
+                  onClick={() => {
+                    setNewPatientData({ nome: '', email: '', telefone: '' });
+                    setShowCreatePatientModal(true);
+                  }}
+                  className="btn btn-primary" 
+                  style={{ padding: '0.6rem 1.25rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                >
+                  <Users size={16} />
+                  {t.btnNewPatient}
+                </button>
+                <button 
+                  onClick={() => {
+                    setNewConsultationData({ paciente_id: '', data_consulta: new Date().toISOString().split('T')[0], peso: '', percentual_gordura: '', observacoes: '', proximo_retorno: '' });
+                    setShowCreateConsultationModal(true);
+                  }}
+                  className="btn btn-outline" 
+                  style={{ padding: '0.6rem 1.25rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-card)', border: '1.5px solid var(--border)' }}
+                >
+                  <CalendarDays size={16} />
+                  {t.btnNewConsultation}
+                </button>
+              </div>
+
               <div style={{
                 background: 'var(--primary-light)',
                 color: 'var(--primary)',
@@ -1360,118 +1477,183 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, theme, toggleTheme }
 
                         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                           <button
-                            onClick={startEditing}
+                            type="button"
+                            onClick={() => setActivePatientSubTab('ficha')}
                             className="btn btn-outline"
-                            style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem', borderRadius: 'var(--radius-sm)', border: '1.5px solid var(--border)', background: 'transparent' }}
+                            style={{
+                              padding: '0.45rem 0.85rem',
+                              fontSize: '0.8rem',
+                              borderRadius: 'var(--radius-sm)',
+                              border: activePatientSubTab === 'ficha' ? '1.5px solid var(--primary)' : '1.5px solid var(--border)',
+                              background: activePatientSubTab === 'ficha' ? 'var(--primary-light)' : 'transparent',
+                              color: activePatientSubTab === 'ficha' ? 'var(--primary)' : 'var(--text-muted)',
+                              fontWeight: 650,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              cursor: 'pointer'
+                            }}
                           >
-                            <Edit size={12} />
-                            <span>Editar Ficha</span>
+                            <ClipboardList size={12} />
+                            <span>Ficha Clínica</span>
                           </button>
 
-                          <div style={{
-                            background: 'var(--secondary-light)',
-                            color: 'var(--secondary-dark)',
-                            border: '1px solid var(--secondary)',
-                            fontSize: '0.75rem',
-                            fontWeight: 650,
-                            padding: '0.35rem 0.85rem',
-                            borderRadius: '999px'
-                          }}>
-                            Ficha Clinica
-                          </div>
-                        </div>
-                      </div>
+                          <button
+                            type="button"
+                            onClick={() => setActivePatientSubTab('plano')}
+                            className="btn btn-outline"
+                            style={{
+                              padding: '0.45rem 0.85rem',
+                              fontSize: '0.8rem',
+                              borderRadius: 'var(--radius-sm)',
+                              border: activePatientSubTab === 'plano' ? '1.5px solid var(--primary)' : '1.5px solid var(--border)',
+                              background: activePatientSubTab === 'plano' ? 'var(--primary-light)' : 'transparent',
+                              color: activePatientSubTab === 'plano' ? 'var(--primary)' : 'var(--text-muted)',
+                              fontWeight: 650,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Sparkles size={12} />
+                            <span>Plano Alimentar IA</span>
+                          </button>
 
-                      {/* Detalhes Clínicos em Grid */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', fontSize: '0.875rem' }}>
-                        {/* Dados Físicos */}
-                        <div style={{ background: 'var(--bg-soft)', padding: '1.2rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                          <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 650, marginBottom: '0.85rem' }}>
-                            <Activity size={15} /> Dados Físicos
-                          </h4>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                            <div><strong>Altura:</strong> {selectedPatient.altura ? `${selectedPatient.altura} m` : 'Não informada'}</div>
-                            <div><strong>Peso Inicial:</strong> {selectedPatient.peso_inicial ? `${selectedPatient.peso_inicial} kg` : 'Não informado'}</div>
-                            <div><strong>Nascimento:</strong> {selectedPatient.data_nascimento ? formatSimpleDate(selectedPatient.data_nascimento) : 'Não informada'}</div>
-                            <div><strong>Sexo:</strong> {selectedPatient.sexo || 'Não informado'}</div>
-                          </div>
-                        </div>
-
-                        {/* Estilo de Vida */}
-                        <div style={{ background: 'var(--bg-soft)', padding: '1.2rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                          <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 650, marginBottom: '0.85rem' }}>
-                            <ClipboardList size={15} /> Estilo de Vida
-                          </h4>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                            <div><strong>Objetivos:</strong> {selectedPatient.objetivos && selectedPatient.objetivos.length > 0 ? selectedPatient.objetivos.join(', ') : 'Não definidos'}</div>
-                            <div><strong>Atividade Física:</strong> {selectedPatient.atividade_fisica ? 'Sim' : 'Não'} {selectedPatient.atividade_fisica_descricao ? `(${selectedPatient.atividade_fisica_descricao})` : ''}</div>
-                            <div><strong>Consumo de Água:</strong> {selectedPatient.litros_agua ? `${selectedPatient.litros_agua} L/dia` : 'Não informado'}</div>
-                            <div><strong>Refeições/dia:</strong> {selectedPatient.refeicoes_por_dia || 'Não informado'}</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Alergias & Patologias */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', fontSize: '0.875rem' }}>
-                        <div style={{ background: 'rgba(239, 68, 68, 0.08)', padding: '1.2rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                          <h4 style={{ color: 'var(--error)', fontWeight: 650, marginBottom: '0.6rem' }}>Alergias & Patologias</h4>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <div><strong>Alergias:</strong> {selectedPatient.alergias && selectedPatient.alergias.length > 0 ? selectedPatient.alergias.join(', ') : 'Nenhuma registrada'}</div>
-                            <div><strong>Patologias:</strong> {selectedPatient.patologias && selectedPatient.patologias.length > 0 ? selectedPatient.patologias.join(', ') : 'Nenhuma registrada'}</div>
-                          </div>
-                        </div>
-
-                        <div style={{ background: 'var(--secondary-light)', padding: '1.2rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(217, 119, 6, 0.2)' }}>
-                          <h4 style={{ color: 'var(--secondary-dark)', fontWeight: 650, marginBottom: '0.6rem' }}>Restrições & Observações</h4>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <div><strong>Restrições:</strong> {selectedPatient.restricoes_alimentares && selectedPatient.restricoes_alimentares.length > 0 ? selectedPatient.restricoes_alimentares.join(', ') : 'Nenhuma registrada'}</div>
-                            <div><strong>Observações:</strong> {selectedPatient.observacoes || 'Nenhuma registrada'}</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Histórico Clínico de Consultas */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1, overflowY: 'auto' }}>
-                        <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text)', fontWeight: 650, borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
-                          <Calendar size={15} /> Histórico de Consultas
-                        </h4>
-                        {selectedPatientConsultations.length === 0 ? (
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '1rem 0' }}>
-                            Nenhuma consulta registrada para este paciente ainda.
-                          </p>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                            {selectedPatientConsultations.map(c => (
-                              <div key={c.id} style={{
-                                padding: '1rem',
-                                border: '1px solid var(--border)',
+                          {activePatientSubTab === 'ficha' && (
+                            <button
+                              type="button"
+                              onClick={startEditing}
+                              className="btn btn-outline"
+                              style={{
+                                padding: '0.45rem 0.85rem',
+                                fontSize: '0.8rem',
                                 borderRadius: 'var(--radius-sm)',
+                                border: '1.5px solid var(--border)',
+                                background: 'transparent',
+                                color: 'var(--text)',
+                                fontWeight: 650,
                                 display: 'flex',
-                                flexDirection: 'column',
-                                gap: '0.4rem',
-                                fontSize: '0.85rem',
-                                background: 'var(--bg-soft)'
-                              }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
-                                  <span style={{ color: 'var(--primary)' }}>Consulta em {formatSimpleDate(c.data_consulta)}</span>
-                                  {c.proximo_retorno && (
-                                    <span style={{ color: 'var(--text-muted)' }}>Próximo retorno: {formatSimpleDate(c.proximo_retorno)}</span>
-                                  )}
-                                </div>
-                                <div style={{ display: 'flex', gap: '1.5rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                                  <span><strong>Peso:</strong> {c.peso ? `${c.peso} kg` : '—'}</span>
-                                  <span><strong>Gordura Corporal:</strong> {c.percentual_gordura ? `${c.percentual_gordura}%` : '—'}</span>
-                                </div>
-                                {c.observacoes && (
-                                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.3rem', borderTop: '1px solid var(--border)', paddingTop: '0.3rem' }}>
-                                    <strong>Conduta/Obs:</strong> {c.observacoes}
-                                  </p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Edit size={12} />
+                              <span>Editar Ficha</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
+
+                      {activePatientSubTab === 'ficha' ? (
+                        <>
+                          {/* Detalhes Clínicos em Grid */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', fontSize: '0.875rem' }}>
+                            {/* Dados Físicos */}
+                            <div style={{ background: 'var(--bg-soft)', padding: '1.2rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                              <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 650, marginBottom: '0.85rem' }}>
+                                <Activity size={15} /> Dados Físicos
+                              </h4>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                <div><strong>Altura:</strong> {selectedPatient.altura ? `${selectedPatient.altura} m` : 'Não informada'}</div>
+                                <div><strong>Peso Inicial:</strong> {selectedPatient.peso_inicial ? `${selectedPatient.peso_inicial} kg` : 'Não informado'}</div>
+                                <div><strong>Nascimento:</strong> {selectedPatient.data_nascimento ? formatSimpleDate(selectedPatient.data_nascimento) : 'Não informada'}</div>
+                                <div><strong>Sexo:</strong> {selectedPatient.sexo || 'Não informado'}</div>
+                              </div>
+                            </div>
+
+                            {/* Estilo de Vida */}
+                            <div style={{ background: 'var(--bg-soft)', padding: '1.2rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                              <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 650, marginBottom: '0.85rem' }}>
+                                <ClipboardList size={15} /> Estilo de Vida
+                              </h4>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                <div><strong>Objetivos:</strong> {selectedPatient.objetivos && selectedPatient.objetivos.length > 0 ? selectedPatient.objetivos.join(', ') : 'Não definidos'}</div>
+                                <div><strong>Atividade Física:</strong> {selectedPatient.atividade_fisica ? 'Sim' : 'Não'} {selectedPatient.atividade_fisica_descricao ? `(${selectedPatient.atividade_fisica_descricao})` : ''}</div>
+                                <div><strong>Consumo de Água:</strong> {selectedPatient.litros_agua ? `${selectedPatient.litros_agua} L/dia` : 'Não informado'}</div>
+                                <div><strong>Refeições/dia:</strong> {selectedPatient.refeicoes_por_dia || 'Não informado'}</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Alergias & Patologias */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', fontSize: '0.875rem' }}>
+                            <div style={{ background: 'rgba(239, 68, 68, 0.08)', padding: '1.2rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                              <h4 style={{ color: 'var(--error)', fontWeight: 650, marginBottom: '0.6rem' }}>Alergias & Patologias</h4>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <div><strong>Alergias:</strong> {selectedPatient.alergias && selectedPatient.alergias.length > 0 ? selectedPatient.alergias.join(', ') : 'Nenhuma registrada'}</div>
+                                <div><strong>Patologias:</strong> {selectedPatient.patologias && selectedPatient.patologias.length > 0 ? selectedPatient.patologias.join(', ') : 'Nenhuma registrada'}</div>
+                              </div>
+                            </div>
+
+                            <div style={{ background: 'var(--secondary-light)', padding: '1.2rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(217, 119, 6, 0.2)' }}>
+                              <h4 style={{ color: 'var(--secondary-dark)', fontWeight: 650, marginBottom: '0.6rem' }}>Restrições & Observações</h4>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <div><strong>Restrições:</strong> {selectedPatient.restricoes_alimentares && selectedPatient.restricoes_alimentares.length > 0 ? selectedPatient.restricoes_alimentares.join(', ') : 'Nenhuma registrada'}</div>
+                                <div><strong>Observações:</strong> {selectedPatient.observacoes || 'Nenhuma registrada'}</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Histórico Clínico de Consultas */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1, overflowY: 'auto' }}>
+                            <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text)', fontWeight: 650, borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                              <Calendar size={15} /> Histórico de Consultas
+                            </h4>
+                            {selectedPatientConsultations.length === 0 ? (
+                              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '1rem 0' }}>
+                                Nenhuma consulta registrada para este paciente ainda.
+                              </p>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                                {selectedPatientConsultations.map(c => (
+                                  <div key={c.id} style={{
+                                    padding: '1rem',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.4rem',
+                                    fontSize: '0.85rem',
+                                    background: 'var(--bg-soft)'
+                                  }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
+                                      <span style={{ color: 'var(--primary)' }}>Consulta em {formatSimpleDate(c.data_consulta)}</span>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                                        {c.proximo_retorno && (
+                                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Próximo retorno: {formatSimpleDate(c.proximo_retorno)}</span>
+                                        )}
+                                        <button 
+                                          onClick={() => handleOpenEditConsultation(c)}
+                                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.75rem', fontWeight: 600 }}
+                                        >
+                                          <Edit size={14} />
+                                          {t.btnEditConsultation}
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '1.5rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                                      <span><strong>Peso:</strong> {c.peso ? `${c.peso} kg` : '—'}</span>
+                                      <span><strong>Gordura Corporal:</strong> {c.percentual_gordura ? `${c.percentual_gordura}%` : '—'}</span>
+                                    </div>
+                                    {c.observacoes && (
+                                      <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.3rem', borderTop: '1px solid var(--border)', paddingTop: '0.3rem' }}>
+                                        <strong>Conduta/Obs:</strong> {c.observacoes}
+                                      </p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <MealPlanSection 
+                          patient={selectedPatient} 
+                          consultations={selectedPatientConsultations} 
+                        />
+                      )}
                     </div>
                   )
                 ) : (
@@ -1669,6 +1851,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, theme, toggleTheme }
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginTop: '0.15rem' }}>
                     {selectedCalendarDate.split('-').reverse().join('/')}
                   </h3>
+                  <button 
+                    onClick={() => {
+                      setNewConsultationData({ ...newConsultationData, data_consulta: selectedCalendarDate, paciente_id: '' });
+                      setShowCreateConsultationModal(true);
+                    }}
+                    className="btn btn-primary"
+                    style={{ width: '100%', marginTop: '0.75rem', fontSize: '0.8rem', padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                  >
+                    <Calendar size={14} />
+                    {t.scheduleForThisDay}
+                  </button>
                 </div>
 
                 {/* Listagem de Consultas / Retornos do Dia */}
@@ -1736,23 +1929,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, theme, toggleTheme }
                               </p>
                             )}
 
-                            {patientObj && (
+                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                              {patientObj && (
+                                <button
+                                  onClick={() => handleRedirectToPatient(patientObj.id)}
+                                  className="btn btn-outline"
+                                  style={{
+                                    padding: '0.4rem',
+                                    fontSize: '0.75rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    flex: 1,
+                                    background: 'var(--bg-card)'
+                                  }}
+                                >
+                                  <Users size={12} />
+                                  <span>Ver Ficha</span>
+                                </button>
+                              )}
                               <button
-                                onClick={() => handleRedirectToPatient(patientObj.id)}
+                                onClick={() => handleOpenEditConsultation(c)}
                                 className="btn btn-outline"
                                 style={{
                                   padding: '0.4rem',
                                   fontSize: '0.75rem',
                                   borderRadius: 'var(--radius-sm)',
-                                  width: '100%',
-                                  marginTop: '0.25rem',
+                                  flex: 1,
                                   background: 'var(--bg-card)'
                                 }}
                               >
-                                <Users size={12} />
-                                <span>Ver Ficha Completa</span>
+                                <Edit size={12} />
+                                <span>{t.btnEditConsultation}</span>
                               </button>
-                            )}
+                            </div>
                           </div>
                         );
                       })}
@@ -1823,6 +2031,162 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, theme, toggleTheme }
             </div>
           </div>
         )}
+        
+        {/* Modais de Cadastro */}
+        {showCreatePatientModal && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div className="fade-in" style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: 'var(--radius)', width: '400px', maxWidth: '90%', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text)' }}>Novo Paciente</h3>
+                <button onClick={() => setShowCreatePatientModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
+              </div>
+              <form onSubmit={handleCreatePatient} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="form-group">
+                  <label style={{ color: 'var(--text)' }}>Nome Completo *</label>
+                  <input type="text" required value={newPatientData.nome} onChange={e => setNewPatientData({...newPatientData, nome: e.target.value})} style={{ background: 'var(--bg)' }} />
+                </div>
+                <div className="form-group">
+                  <label style={{ color: 'var(--text)' }}>E-mail</label>
+                  <input type="email" value={newPatientData.email} onChange={e => setNewPatientData({...newPatientData, email: e.target.value})} style={{ background: 'var(--bg)' }} />
+                </div>
+                <div className="form-group">
+                  <label style={{ color: 'var(--text)' }}>Telefone</label>
+                  <input type="text" value={newPatientData.telefone} onChange={e => setNewPatientData({...newPatientData, telefone: e.target.value})} style={{ background: 'var(--bg)' }} />
+                </div>
+                <button type="submit" disabled={isSubmitting} className="btn btn-primary" style={{ marginTop: '1rem', padding: '0.75rem' }}>
+                  {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Cadastrar Paciente'}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showCreateConsultationModal && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div className="fade-in" style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: 'var(--radius)', width: '450px', maxWidth: '90%', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text)' }}>Nova Consulta</h3>
+                <button onClick={() => setShowCreateConsultationModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
+              </div>
+              <form onSubmit={handleCreateConsultation} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="form-group">
+                  <label style={{ color: 'var(--text)' }}>Paciente *</label>
+                  <select 
+                    required 
+                    value={newConsultationData.paciente_id} 
+                    onChange={e => setNewConsultationData({...newConsultationData, paciente_id: e.target.value})}
+                    style={{ 
+                      width: '100%', 
+                      padding: '0.75rem 1rem', 
+                      background: 'var(--bg)', 
+                      border: '1.5px solid var(--border)', 
+                      borderRadius: 'var(--radius-sm)', 
+                      color: 'var(--text)',
+                      outline: 'none'
+                    }}
+                  >
+                    <option value="">Selecione um paciente</option>
+                    {patients.map(p => (
+                      <option key={p.id} value={p.id}>{p.nome}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label style={{ color: 'var(--text)' }}>Data da Consulta *</label>
+                  <input type="date" required value={newConsultationData.data_consulta} onChange={e => setNewConsultationData({...newConsultationData, data_consulta: e.target.value})} style={{ background: 'var(--bg)' }} />
+                </div>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label style={{ color: 'var(--text)' }}>Peso (kg)</label>
+                    <input type="number" step="0.1" value={newConsultationData.peso} onChange={e => setNewConsultationData({...newConsultationData, peso: e.target.value})} style={{ background: 'var(--bg)' }} />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label style={{ color: 'var(--text)' }}>Gordura (%)</label>
+                    <input type="number" step="0.1" value={newConsultationData.percentual_gordura} onChange={e => setNewConsultationData({...newConsultationData, percentual_gordura: e.target.value})} style={{ background: 'var(--bg)' }} />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label style={{ color: 'var(--text)' }}>Observações</label>
+                  <textarea value={newConsultationData.observacoes} onChange={e => setNewConsultationData({...newConsultationData, observacoes: e.target.value})} style={{ background: 'var(--bg)', minHeight: '80px', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1.5px solid var(--border)' }} />
+                </div>
+                <div className="form-group">
+                  <label style={{ color: 'var(--text)' }}>Próximo Retorno (opcional)</label>
+                  <input type="date" value={newConsultationData.proximo_retorno} onChange={e => setNewConsultationData({...newConsultationData, proximo_retorno: e.target.value})} style={{ background: 'var(--bg)' }} />
+                </div>
+                <button type="submit" disabled={isSubmitting} className="btn btn-primary" style={{ marginTop: '1rem', padding: '0.75rem' }}>
+                  {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Registrar Consulta'}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showEditConsultationModal && editConsultationData && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div className="fade-in" style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: 'var(--radius)', width: '450px', maxWidth: '90%', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text)' }}>{t.editConsultationTitle}</h3>
+                <button onClick={() => setShowEditConsultationModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
+              </div>
+              <form onSubmit={handleUpdateConsultation} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="form-group">
+                  <label style={{ color: 'var(--text)' }}>Paciente</label>
+                  <input 
+                    type="text" 
+                    readOnly 
+                    value={patients.find(p => p.id === editConsultationData.paciente_id)?.nome || ''} 
+                    style={{ background: 'var(--bg-soft)', color: 'var(--text-muted)', cursor: 'not-allowed' }} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label style={{ color: 'var(--text)' }}>Data da Consulta *</label>
+                  <input type="date" required value={editConsultationData.data_consulta} onChange={e => setEditConsultationData({...editConsultationData, data_consulta: e.target.value})} style={{ background: 'var(--bg)' }} />
+                </div>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label style={{ color: 'var(--text)' }}>Peso (kg)</label>
+                    <input type="number" step="0.1" value={editConsultationData.peso} onChange={e => setEditConsultationData({...editConsultationData, peso: e.target.value})} style={{ background: 'var(--bg)' }} />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label style={{ color: 'var(--text)' }}>Gordura (%)</label>
+                    <input type="number" step="0.1" value={editConsultationData.percentual_gordura} onChange={e => setEditConsultationData({...editConsultationData, percentual_gordura: e.target.value})} style={{ background: 'var(--bg)' }} />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label style={{ color: 'var(--text)' }}>Observações</label>
+                  <textarea value={editConsultationData.observacoes} onChange={e => setEditConsultationData({...editConsultationData, observacoes: e.target.value})} style={{ background: 'var(--bg)', minHeight: '80px', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1.5px solid var(--border)' }} />
+                </div>
+                <div className="form-group">
+                  <label style={{ color: 'var(--text)' }}>Próximo Retorno (opcional)</label>
+                  <input type="date" value={editConsultationData.proximo_retorno} onChange={e => setEditConsultationData({...editConsultationData, proximo_retorno: e.target.value})} style={{ background: 'var(--bg)' }} />
+                </div>
+                <button type="submit" disabled={isSubmitting} className="btn btn-primary" style={{ marginTop: '1rem', padding: '0.75rem' }}>
+                  {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Atualizar Consulta'}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Popup de Consultas do Dia */}
+        {showTodayConsultationsPopup && getConsultsForDate(new Date().toISOString().split('T')[0]).length > 0 && (
+          <div className="fade-in" style={{ position: 'fixed', bottom: '2rem', right: '2rem', background: 'var(--bg-card)', padding: '1.5rem', borderRadius: 'var(--radius)', border: '1.5px solid var(--primary)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 999, width: '320px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', fontWeight: 700 }}>
+                <CalendarDays size={18} />
+                <h4>Consultas de Hoje</h4>
+              </div>
+              <button onClick={() => setShowTodayConsultationsPopup(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={16} /></button>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+              Você tem {getConsultsForDate(new Date().toISOString().split('T')[0]).length} consulta(s) marcada(s) para hoje.
+            </p>
+            <button onClick={() => { setShowTodayConsultationsPopup(false); setActiveTab('agenda'); setSelectedCalendarDate(new Date().toISOString().split('T')[0]); }} className="btn btn-primary" style={{ width: '100%', fontSize: '0.8rem', padding: '0.5rem' }}>
+              Ver Agenda
+            </button>
+          </div>
+        )}
+
       </main>
     </div>
   );

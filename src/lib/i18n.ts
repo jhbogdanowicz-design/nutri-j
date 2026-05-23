@@ -64,6 +64,11 @@ export const translations = {
     ago: 'atrás',
     lastConsultation: 'última consulta há',
     weeklyConsultationsSubtitle: 'agendadas para esta semana',
+    btnNewPatient: 'Novo Paciente',
+    btnNewConsultation: 'Marcar Consulta',
+    btnEditConsultation: 'Editar Consulta',
+    scheduleForThisDay: 'Agendar para este dia',
+    editConsultationTitle: 'Editar Consulta'
   },
   en: {
     // Auth - Login
@@ -129,6 +134,11 @@ export const translations = {
     ago: 'ago',
     lastConsultation: 'last consultation',
     weeklyConsultationsSubtitle: 'scheduled for this week',
+    btnNewPatient: 'New Patient',
+    btnNewConsultation: 'New Appointment',
+    btnEditConsultation: 'Edit Appointment',
+    scheduleForThisDay: 'Schedule for this day',
+    editConsultationTitle: 'Edit Appointment'
   },
 };
 

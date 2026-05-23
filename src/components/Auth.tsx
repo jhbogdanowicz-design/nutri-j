@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useTranslations } from '../lib/i18n';
-import { AlertCircle, Loader2, LogOut } from 'lucide-react';
+import { AlertCircle, Loader2, LogOut, Sun, Moon } from 'lucide-react';
 
-export const Auth: React.FC = () => {
+interface AuthProps {
+  theme: 'light' | 'dark';
+  toggleTheme: () => void;
+}
+
+export const Auth: React.FC<AuthProps> = ({ theme, toggleTheme }) => {
   const t = useTranslations();
   const [isRegistering, setIsRegistering] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -64,6 +69,34 @@ export const Auth: React.FC = () => {
 
   return (
     <div className="auth-page">
+      <div className="theme-toggle-wrap" style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', zIndex: 100 }}>
+        <button 
+          onClick={toggleTheme} 
+          className="btn btn-outline"
+          style={{ 
+            padding: '0.5rem', 
+            borderRadius: '999px', 
+            width: '42px', 
+            height: '42px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            background: 'var(--bg-card)',
+            border: '1.5px solid var(--border)',
+            boxShadow: 'var(--shadow-sm)',
+            cursor: 'pointer'
+          }}
+          type="button"
+          title={theme === 'light' ? 'Mudar para Tema Escuro' : 'Mudar para Tema Claro'}
+        >
+          {theme === 'light' ? (
+            <Moon size={20} style={{ color: 'var(--text-muted)' }} />
+          ) : (
+            <Sun size={20} style={{ color: 'var(--secondary)' }} />
+          )}
+        </button>
+      </div>
+
       {/* ── LADO ESQUERDO ── */}
       <div className="auth-left">
         <div className="auth-left-brand" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2.5rem' }}>

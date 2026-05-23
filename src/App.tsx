@@ -55,7 +55,7 @@ function App() {
   return session ? (
     <Dashboard user={session.user} theme={theme} toggleTheme={toggleTheme} />
   ) : (
-    <Auth />
+    <Auth theme={theme} toggleTheme={toggleTheme} />
   );
 }
 

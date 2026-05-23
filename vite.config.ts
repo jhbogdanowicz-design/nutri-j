@@ -5,11 +5,17 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      }
+    },
     watch: {
       usePolling: false, // Evita alto uso de CPU em alguns sistemas
     },
     hmr: {
-      overlay: false, // Desativa o overlay de erro para ser mais leve
+      overlay: true, // Reativado para debug
     }
   },
   optimizeDeps: {
